@@ -1,0 +1,116 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# important
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of important is to ...
+
+## Installation
+
+You can install the development version of important from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("topepo/important")
+```
+
+## Example
+
+```{r}
+#| label: startup-sshh
+#| include: false
+library(tidymodels)
+library(important)
+theme_set(theme_bw())
+```
+```{r}
+#| label: startup
+#| include: false
+library(tidymodels)
+library(important)
+```
+
+
+```{r}
+#| label: chi-data
+data(deliveries, package = "modeldata")
+
+set.seed(991)
+delivery_split <- initial_validation_split(deliveries, prop = c(0.6, 0.2), strata = time_to_delivery)
+delivery_train <- training(delivery_split)
+```
+
+
+```{r}
+#| label: model
+delivery_rec <- 
+  recipe(time_to_delivery ~ ., data = delivery_train) %>% 
+  step_dummy(all_factor_predictors()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_spline_natural(hour, distance, deg_free = 10) %>% 
+  step_interact(~ starts_with("hour_"):starts_with("day_"))
+
+lm_wflow <- workflow(delivery_rec, linear_reg())
+lm_fit <- fit(lm_wflow, delivery_train)
+```
+
+
+```{r}
+#| label: derived-importance
+set.seed(382)
+lm_deriv_imp <- 
+  importance_perm(
+    lm_fit,
+    data = delivery_train,
+    metrics = metric_set(mae, rsq),
+    times = 50,
+    type = "derived"
+  )
+lm_deriv_imp
+```
+
+```{r}
+#| label: derived-plot
+#| fig.height: 8
+
+autoplot(lm_deriv_imp, top = 100)
+```
+
+```{r}
+#| label: original-importance
+set.seed(382)
+lm_orig_imp <- 
+  importance_perm(
+    lm_fit,
+    data = delivery_train,
+    metrics = metric_set(mae, rsq),
+    times = 50
+  )
+lm_orig_imp
+```
+
+```{r}
+#| label: original-plot
+
+autoplot(lm_orig_imp)
+```
+
+
+## Code of Conduct
+  
+Please note that the important project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
