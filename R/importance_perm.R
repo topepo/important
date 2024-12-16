@@ -93,6 +93,8 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
   type <- rlang::arg_match(type, c("original", "derived"))
   metrics <- tune::check_metrics_arg(metrics, wflow)
   pkgs <- required_pkgs(wflow)
+  pkgs <- c("important", "tune", pkgs)
+  pkgs <- unique(pkgs)
   rlang::check_installed(pkgs)
 
   # ------------------------------------------------------------------------------
@@ -111,23 +113,34 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
   size <- min(floor(n * 0.8) , size)
 
   # ------------------------------------------------------------------------------
-  # Prepare for permutations. A large `combos` data frame is created to optimize
-  # how well parallel processing speeds-up computations
+  # Prepare for permutations. A large `perm_combos` data frame is created to
+  # optimize how well parallel processing speeds-up computations
 
   info <- tune::metrics_info(metrics)
   seed_vals <- sample.int(1e6, times)
-  combos <- tidyr::crossing(seed = seed_vals, colunm = extracted_data_nms)
+
+  perm_combos <- tidyr::crossing(seed = seed_vals, column = extracted_data_nms)
+  perm_combos <-
+    vctrs::vec_chop(perm_combos, indicies = as.list(vctrs::vec_seq_along(perm_combos)))
+
+  perm_bl <- dplyr::tibble(seed = seed_vals)
+  perm_bl <-
+    vctrs::vec_chop(perm_bl, indicies = as.list(vctrs::vec_seq_along(perm_bl)))
 
   # ------------------------------------------------------------------------------
   # Generate all permutations
 
   rlang::local_options(doFuture.rng.onMisuse = "ignore")
-  res_perms <- purrr::map2(
-    combos$colunm,
-    combos$seed,
-    ~ metric_iter(
-      column = .x,
-      .y,
+  res_perms <-
+    future.apply::future_lapply(
+      perm_combos,
+      FUN = future_wrapper,
+
+      future.packages = pkgs,
+      future.label = "permutations-%d",
+      future.seed = NULL,
+
+      is_perm = TRUE,
       type = type,
       fitted = wflow,
       dat = extracted_data,
@@ -135,19 +148,23 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
       size = size,
       outcome = outcome_nm,
       eval_time = eval_time,
-      event_level = event_level
-    )
-  ) |>
+      event_level = event_level) |>
     purrr::list_rbind()
 
   # ------------------------------------------------------------------------------
   # Get un-permuted performance statistics (per seed value)
 
-  res_bl <- purrr::map(
-    seed_vals,
-    ~ metric_iter(
-      column = NULL,
-      .x,
+  rlang::local_options(doFuture.rng.onMisuse = "ignore")
+  res_bl <-
+    future.apply::future_lapply(
+      perm_bl,
+      FUN = future_wrapper,
+
+      future.packages = pkgs,
+      future.label = "baseline-%d",
+      future.seed = NULL,
+
+      is_perm = FALSE,
       type = type,
       fitted = wflow,
       dat = extracted_data,
@@ -155,9 +172,7 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
       size = size,
       outcome = outcome_nm,
       eval_time = eval_time,
-      event_level = event_level
-    )
-  ) |>
+      event_level = event_level) |>
     purrr::list_rbind() |>
     dplyr::rename(baseline = .estimate) |>
     dplyr::select(-predictor)
@@ -204,6 +219,29 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
   res
 }
 
+future_wrapper <- function(vals, is_perm, type, fitted, dat, metrics, size, outcome,
+                           eval_time, event_level)  {
+  if (is_perm) {
+    col <- vals$column[[1]]
+  } else {
+    col <- NULL
+  }
+  res <-
+    metric_iter(
+      column = col,
+      seed = vals$seed[[1]],
+      type = type,
+      fitted = fitted,
+      dat = dat,
+      metrics = metrics,
+      size = size,
+      outcome = outcome,
+      eval_time = eval_time,
+      event_level = event_level
+    )
+  res
+}
+
 metric_iter <- function(column = NULL, seed, type, fitted, dat, metrics, size,
                         outcome, eval_time, event_level) {
   info <- tune::metrics_info(metrics)
@@ -243,5 +281,5 @@ metric_iter <- function(column = NULL, seed, type, fitted, dat, metrics, size,
 }
 
 # TODO silently bad results when an in-line transformation is used with
-# add_model(x formula = log(y) ~ x) _or_ fails due to not findnig the outcome
+# add_model(x formula = log(y) ~ x) _or_ fails due to not finding the outcome
 # column when add_formula(log(y) ~ .) is used
