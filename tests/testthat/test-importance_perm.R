@@ -225,6 +225,8 @@ test_that("compute metrics - original predictors, regression", {
 
 
 test_that("compute metrics - derived predictors, regression", {
+	skip_if_not_installed("recipes")
+
 	mtr_ptype <-
 		tibble::tibble(
 			.metric = character(0),
@@ -292,6 +294,8 @@ test_that("compute metrics - derived predictors, regression", {
 
 
 test_that("compute metrics - original predictors, classification", {
+	skip_if_not_installed("modeldata")
+
 	mtr_ptype <-
 		tibble::tibble(
 			.metric = character(0),
@@ -359,6 +363,9 @@ test_that("compute metrics - original predictors, classification", {
 
 
 test_that("compute metrics - derived predictors, classification", {
+	skip_if_not_installed("modeldata")
+	skip_if_not_installed("recipes")
+
 	mtr_ptype <-
 		tibble::tibble(
 			.metric = character(0),
@@ -431,6 +438,8 @@ test_that("compute metrics - derived predictors, classification", {
 
 
 test_that("compute metrics - original predictors, censored regression", {
+	skip_if_not_installed("censored")
+
 	mtr_ptype <-
 		tibble::tibble(
 			.metric = character(0),
@@ -505,7 +514,9 @@ test_that("compute metrics - original predictors, censored regression", {
 })
 
 
-test_that("compute metrics - derived predictors, regression", {
+test_that("compute metrics - derived predictors, censored regression", {
+	skip_if_not_installed("censored")
+
 	mtr_ptype <-
 		tibble::tibble(
 			.metric = character(0),
