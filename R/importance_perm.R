@@ -143,7 +143,7 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
 
       is_perm = TRUE,
       type = type,
-      fitted = wflow,
+      wflow_fitted = wflow,
       dat = extracted_data,
       metrics = metrics,
       size = size,
@@ -167,7 +167,7 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
 
       is_perm = FALSE,
       type = type,
-      fitted = wflow,
+      wflow_fitted = wflow,
       dat = extracted_data,
       metrics = metrics,
       size = size,
@@ -220,8 +220,8 @@ importance_perm <- function(wflow, data, metrics = NULL, type = "original", size
   res
 }
 
-future_wrapper <- function(vals, is_perm, type, fitted, dat, metrics, size, outcome,
-                           eval_time, event_level)  {
+future_wrapper <- function(vals, is_perm, type, wflow_fitted, dat, metrics, size,
+													 outcome, eval_time, event_level)  {
   if (is_perm) {
     col <- vals$column[[1]]
   } else {
@@ -232,7 +232,7 @@ future_wrapper <- function(vals, is_perm, type, fitted, dat, metrics, size, outc
       column = col,
       seed = vals$seed[[1]],
       type = type,
-      fitted = fitted,
+      wflow_fitted = wflow_fitted,
       dat = dat,
       metrics = metrics,
       size = size,
@@ -243,12 +243,17 @@ future_wrapper <- function(vals, is_perm, type, fitted, dat, metrics, size, outc
   res
 }
 
-metric_iter <- function(column = NULL, seed, type, fitted, dat, metrics, size,
-                        outcome, eval_time, event_level) {
+metric_iter <- function(column = NULL, seed, type, wflow_fitted, dat, metrics,
+												size, outcome, eval_time, event_level) {
   info <- tune::metrics_info(metrics)
   set.seed(seed)
   n <- nrow(dat)
+
   if (!is.null(column)) {
+  	if (!any(names(dat) == column)) {
+  		cli::cli_abort("Column {column} was not in the data set. Existing columns
+  								  are: {names(dat)}.")
+  	}
     dat[[column]] <- sample(dat[[column]])
   }
   if (!is.null(size)) {
@@ -259,7 +264,7 @@ metric_iter <- function(column = NULL, seed, type, fitted, dat, metrics, size,
   # ------------------------------------------------------------------------------
   # Predictions. Use a wrapper because a simple `augment()` works for original
   # predictors but not for derived.
-  preds <- predictions(fitted, dat, type, eval_time = eval_time)
+  preds <- predictions(wflow_fitted, dat, type, eval_time = eval_time)
 
   # ------------------------------------------------------------------------------
   # Compute metrics
@@ -284,3 +289,22 @@ metric_iter <- function(column = NULL, seed, type, fitted, dat, metrics, size,
 # TODO silently bad results when an in-line transformation is used with
 # add_model(x formula = log(y) ~ x) _or_ fails due to not finding the outcome
 # column when add_formula(log(y) ~ .) is used
+
+predictions <- function(wflow, new_data, type, eval_time) {
+	if (type == "original") {
+		preds <- augment(wflow, new_data = new_data, eval_time = eval_time)
+	} else {
+		preds <-
+			wflow |>
+			extract_fit_parsnip() |>
+			augment(new_data = new_data, eval_time = eval_time)
+		use_post <- has_postprocessor(wflow)
+		if (use_post) {
+			post_proc <- extract_postprocessor(wflow)
+			preds <- predict(post_proc, preds)
+		}
+	}
+	preds
+}
+
+

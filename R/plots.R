@@ -98,20 +98,3 @@ autoplot.importance_perm <- function(object, top = Inf, metric = NULL,
   }
   p
 }
-
-predictions <- function(wflow, new_data, type, eval_time) {
-  if (type == "original") {
-    preds <- augment(wflow, new_data = new_data, eval_time = eval_time)
-  } else {
-    preds <-
-      wflow |>
-      extract_fit_parsnip() |>
-      augment(new_data = new_data, eval_time = eval_time)
-    use_post <- has_postprocessor(wflow)
-    if (use_post) {
-      post_proc <- extract_postprocessor(wflow)
-      preds <- predict(post_proc, preds)
-    }
-  }
-  preds
-}
