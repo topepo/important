@@ -16,8 +16,10 @@
 \arguments{
 \item{object}{A tibble of results from \code{\link[=importance_perm]{importance_perm()}}.}
 
-\item{top}{An integer for how many terms to show. The rankings of predictors
-are computed across metrics.}
+\item{top}{An integer for how many terms to show. To define importance when
+there are multiple metrics, the rankings of predictors are computed across
+metrics and the average rank is used. In the case of tied rankings, all the
+ties are included.}
 
 \item{metric}{A character vector or \code{NULL} for which metric to plot. By
 default, all metrics will be shown via facets. Possible options are
@@ -28,7 +30,7 @@ which the survival probability is estimated.}
 
 \item{type}{A character value. The default is \code{"importance"} which shows the
 overall signal-to-noise ration (i.e., mean divided by standard error).
-Alternatively, \code{"direction"} shows the mean difference value with standard
+Alternatively, \code{"difference"} shows the mean difference value with standard
 error bounds.}
 
 \item{...}{Not used.}
@@ -38,4 +40,40 @@ A \code{ggplot2} object.
 }
 \description{
 Visualize importance scores
+}
+\examples{
+\dontshow{if (!is_cran_check()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+if (!rlang::is_installed(c("modeldata", "recipes", "workflows"))) {
+  library(modeldata)
+  library(recipes)
+  library(workflows)
+  library(dplyr)
+
+	data(ad_data, package = "modeldata")
+
+	ad_rec <-
+		recipe(Class ~ ., data = ad_data) \%>\%
+		step_pca(all_numeric_predictors(), -male, -age, num_comp = 5) \%>\%
+		step_dummy(all_factor_predictors()) \%>\%
+		step_zv(all_predictors())
+
+	ad_wflow <- workflow(ad_rec, logistic_reg())
+	ad_fit <- fit(ad_wflow, data = ad_data)
+
+	###
+
+	set.seed(392)
+	imp_orig <- importance_perm(ad_fit, data = ad_data, type = "original")
+
+	autoplot(imp_derv, top = 10)
+
+	###
+
+	set.seed(392)
+	imp_derv <- importance_perm(ad_fit, data = ad_data, type = "derived")
+
+	autoplot(imp_derv)
+	autoplot(imp_derv, metric = "brier_class", type = "difference")
+}
+\dontshow{\}) # examplesIf}
 }

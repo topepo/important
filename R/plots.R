@@ -5,18 +5,54 @@
 #' the entries in `.metric` column of the object.
 #' @param eval_time For censored regression models, a vector of time points at
 #' which the survival probability is estimated.
-#' @param top An integer for how many terms to show. The rankings of predictors
-#' are computed across metrics.
+#' @param top An integer for how many terms to show. To define importance when
+#' there are multiple metrics, the rankings of predictors are computed across
+#' metrics and the average rank is used. In the case of tied rankings, all the
+#' ties are included.
 #' @param type A character value. The default is `"importance"` which shows the
 #' overall signal-to-noise ration (i.e., mean divided by standard error).
-#' Alternatively, `"direction"` shows the mean difference value with standard
+#' Alternatively, `"difference"` shows the mean difference value with standard
 #' error bounds.
 #' @param ... Not used.
 #' @return A `ggplot2` object.
+#' @examplesIf !is_cran_check()
+#' if (!rlang::is_installed(c("modeldata", "recipes", "workflows"))) {
+#'   library(modeldata)
+#'   library(recipes)
+#'   library(workflows)
+#'   library(dplyr)
+#'
+#' 	data(ad_data, package = "modeldata")
+#'
+#' 	ad_rec <-
+#' 		recipe(Class ~ ., data = ad_data) %>%
+#' 		step_pca(all_numeric_predictors(), -male, -age, num_comp = 5) %>%
+#' 		step_dummy(all_factor_predictors()) %>%
+#' 		step_zv(all_predictors())
+#'
+#' 	ad_wflow <- workflow(ad_rec, logistic_reg())
+#' 	ad_fit <- fit(ad_wflow, data = ad_data)
+#'
+#' 	###
+#'
+#' 	set.seed(392)
+#' 	imp_orig <- importance_perm(ad_fit, data = ad_data, type = "original")
+#'
+#' 	autoplot(imp_derv, top = 10)
+#'
+#' 	###
+#'
+#' 	set.seed(392)
+#' 	imp_derv <- importance_perm(ad_fit, data = ad_data, type = "derived")
+#'
+#' 	autoplot(imp_derv)
+#' 	autoplot(imp_derv, metric = "brier_class", type = "difference")
+#' }
 #' @export
 autoplot.importance_perm <- function(object, top = Inf, metric = NULL,
                                      eval_time = NULL, type = "importance", ...) {
   type <- rlang::arg_match(type, values = c("importance", "difference"))
+
   if (!is.null(metric)) {
     object <- object[object$.metric %in% metric,]
     if (nrow(object) == 0) {
@@ -33,10 +69,13 @@ autoplot.importance_perm <- function(object, top = Inf, metric = NULL,
     dplyr::arrange(ranking)
 
   num_pred <- vctrs::vec_unique_count(object$predictor)
-  if (top < num_pred) {
-    overall_rank <- overall_rank[overall_rank$ranking <= top, ]
-    object <- object[object$predictor %in% unique(overall_rank$predictor), ]
-  }
+  top <- min(top, num_pred)
+  overall_rank <-
+  	overall_rank |>
+  	dplyr::slice_min(ranking, n = top) |>
+  	dplyr::select(predictor)
+
+  object <- dplyr::inner_join(object, overall_rank, by = "predictor")
   object$predictor <- factor(object$predictor, levels = rev(overall_rank$predictor))
 
   p <-
@@ -50,11 +89,12 @@ autoplot.importance_perm <- function(object, top = Inf, metric = NULL,
     p <- p + ggplot2::geom_point(ggplot2::aes(x = importance))
   } else if (type == "difference") {
     # TODO add alpha level
+  	num_rows <- vctrs::vec_unique_count(object$predictor)
     p <- p +
       ggplot2::geom_point(ggplot2::aes(x = mean)) +
       ggplot2::geom_errorbar(
         ggplot2::aes(xmin = mean - 1.96 * std_err, xmax = mean + 1.96 * std_err),
-        width = 0)
+        width = num_rows / 50, alpha = 1 / 2)
   }
   p
 }
