@@ -19,7 +19,7 @@ importance_perm(
 \item{wflow}{A fitted \code{\link[workflows:workflow]{workflows::workflow()}}.}
 
 \item{data}{A data frame of the data passed to \code{\link[workflows:fit-workflow]{workflows::fit.workflow()}},
-including the outcome and case weights.}
+including the outcome and case weights (if any).}
 
 \item{metrics}{A \code{\link[yardstick:metric_set]{yardstick::metric_set()}} or \code{NULL}.}
 
@@ -28,12 +28,13 @@ A value of \code{"original"} (default) will return values in the same
 representation of \code{data}. Using \code{"derived"} will compute them for any derived
 features/predictors, such as dummy indicator columns, etc.}
 
-\item{size}{How many data points to predictor for each iteration.}
+\item{size}{How many data points to predict for each permutation iteration.}
 
 \item{times}{How many iterations to repeat the calculations.}
 
 \item{eval_time}{For censored regression models, a vector of time points at
-which the survival probability is estimated.}
+which the survival probability is estimated. This is only needed if a dynamic
+metric is used, such as the Brier score or the area under the ROC curve.}
 
 \item{event_level}{A single string. Either \code{"first"} or \code{"second"} to specify
 which level of \code{truth} to consider as the "event". This argument is only
@@ -50,7 +51,7 @@ A tibble with extra classes \code{"importance_perm"} and either
 larger values indicate worse performance (i.e., higher importance).
 \item \code{std_err}: the standard error of the differences.
 \item \code{importance}: the mean divided by the standard error.
-For censored regression models, an additional \code{.eval_time} column may also
+\item For censored regression models, an additional \code{.eval_time} column may also
 be included (depending on the metric requested).
 }
 }

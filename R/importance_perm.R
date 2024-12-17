@@ -6,15 +6,16 @@
 #'
 #' @param wflow A fitted [workflows::workflow()].
 #' @param data A data frame of the data passed to [workflows::fit.workflow()],
-#' including the outcome and case weights.
+#' including the outcome and case weights (if any).
 #' @param metrics A [yardstick::metric_set()] or `NULL`.
 #' @param eval_time For censored regression models, a vector of time points at
-#' which the survival probability is estimated.
+#' which the survival probability is estimated. This is only needed if a dynamic
+#' metric is used, such as the Brier score or the area under the ROC curve.
 #' @param type A character string for which _level_ of predictors to compute.
 #' A value of `"original"` (default) will return values in the same
 #' representation of `data`. Using `"derived"` will compute them for any derived
 #' features/predictors, such as dummy indicator columns, etc.
-#' @param size How many data points to predictor for each iteration.
+#' @param size How many data points to predict for each permutation iteration.
 #' @param times How many iterations to repeat the calculations.
 #' @param event_level A single string. Either `"first"` or `"second"` to specify
 #'   which level of `truth` to consider as the "event". This argument is only
@@ -51,7 +52,7 @@
 #'    larger values indicate worse performance (i.e., higher importance).
 #' -  `std_err`: the standard error of the differences.
 #' -  `importance`: the mean divided by the standard error.
-#' For censored regression models, an additional `.eval_time` column may also
+#'  -  For censored regression models, an additional `.eval_time` column may also
 #' be included (depending on the metric requested).
 #' @examplesIf !is_cran_check()
 #' if (!rlang::is_installed(c("modeldata", "recipes", "workflows"))) {
