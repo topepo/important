@@ -18,18 +18,33 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of important is to ...
+The important package has a succinct interface for obtaining estimates of predictor importance with tidymodels objects. A few of the main features: 
+
+- Any performance metrics from the yardstick package can be used. 
+- Importance can be calculated for either the original columns or at the level of any derived model terms created during feature engineering. 
+- The computations that loop across permutation iterations and predictors columns are easily parallelized. 
+- The results are returned in a tidy format. 
+ 
 
 ## Installation
 
 You can install the development version of important from [GitHub](https://github.com/) with:
 
 ``` r
+# Not yet!
 # install.packages("devtools")
 devtools::install_github("topepo/important")
 ```
 
+## Do we really need another package that computes variable importances?
+
+The main reason for making important is censored regression models. tidymodels released tools for fitting and qualifying models that have censored outcomes. This included some dynamic performance metrics that were evaluated at different time points. This was a substantial change for us, and it would have been even more challenging to add to other packages. 
+
 ## Example
+
+Let's look at an analysis that models [food delivery times](https://aml4td.org/chapters/whole-game.html#sec-delivery-times). The outcome is the time between an order being placed and the delivery (all data are complete - there is no censoring). We model this in terms of the order day/time, the distance to the restaurant, and which items are contained in the order. Exploratory data analysis shows several nonlinear trends in the data and some interactions between these trends.  
+
+We'll load the tidymodels and important packages to get started. 
 
 ```{r}
 #| label: startup-sshh
@@ -45,9 +60,10 @@ library(tidymodels)
 library(important)
 ```
 
+The data are split into training, validation, and testing sets. 
 
 ```{r}
-#| label: chi-data
+#| label: food-data
 data(deliveries, package = "modeldata")
 
 set.seed(991)
@@ -55,6 +71,7 @@ delivery_split <- initial_validation_split(deliveries, prop = c(0.6, 0.2), strat
 delivery_train <- training(delivery_split)
 ```
 
+The model uses a recipe with spline terms for the hour and distances. The nonlinear trend over the time of order changes on the day, so we added interactions between these two sets of terms. Finally, a simple linear regression model is used for estimation:  
 
 ```{r}
 #| label: model
@@ -69,6 +86,7 @@ lm_wflow <- workflow(delivery_rec, linear_reg())
 lm_fit <- fit(lm_wflow, delivery_train)
 ```
 
+First, let’s capture the effect of the individual model terms. These terms are from the derived features in the models, such as dummy variables, spline terms, interaction columns, etc. 
 
 ```{r}
 #| label: derived-importance
@@ -83,25 +101,47 @@ lm_deriv_imp <-
   )
 lm_deriv_imp
 ```
+Using mean absolute error as the metric of interest, the top 5 features are: 
+
+```{r}
+lm_deriv_imp %>% 
+	filter(.metric == "mae") %>% 
+	slice_max(importance, n = 5)
+```
+
+Two notes: 
+
+- The importance scores are the ratio of the mean change in performance and the associated standard error. The mean value is always increasing with importance, no matter which direction is preferred for the specific metric(s). 
+
+- We can run these in parallel by loading the future package and specifying a parallel backend using the `plan()` function.  
+
+There is a plot method that can help visualize the results: 
 
 ```{r}
 #| label: derived-plot
 #| fig.height: 8
 
-autoplot(lm_deriv_imp, top = 100)
+autoplot(lm_deriv_imp, top = 50)
 ```
+
+Since there are spline terms and interactions for the hour column, we might not care about the importance of a term such as `hour_06` (the sixth spline feature). In aggregate, we might want to know the effect of the original predictor columns. The `type` option is used for this purpose:
 
 ```{r}
 #| label: original-importance
 set.seed(382)
 lm_orig_imp <- 
-  importance_perm(
-    lm_fit,
-    data = delivery_train,
-    metrics = metric_set(mae, rsq),
-    times = 50
-  )
-lm_orig_imp
+	importance_perm(
+		lm_fit,
+		data = delivery_train,
+		metrics = metric_set(mae, rsq),
+		times = 50,
+		type = "original"
+	)
+
+# Top five: 
+lm_orig_imp %>% 
+	filter(.metric == "mae") %>% 
+	slice_max(importance, n = 5)
 ```
 
 ```{r}
