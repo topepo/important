@@ -5,7 +5,6 @@ forge_predictors <- function (new_data, workflow) {
   forged$predictors
 }
 
-
 # TODO case weights
 # TODO use original data if not available in workflow
 extract_data_original <- function(wflow, data, ...) {
