@@ -1,4 +1,4 @@
-# compute metrics - derived predictors, regression
+# compute metrics - derived predictors, censored regression
 
     Code
       important:::metric_iter(column = "moash", seed = 1, type = "derived",

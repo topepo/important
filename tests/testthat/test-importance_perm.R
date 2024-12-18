@@ -221,6 +221,7 @@ test_that("compute metrics - original predictors, regression", {
 		reg_bl$.estimate[reg_bl$.metric == "mae"] <
 			conc_bl$.estimate[conc_bl$.metric == "mae"]
 	)
+
 })
 
 
@@ -612,3 +613,277 @@ test_that("compute metrics - derived predictors, censored regression", {
 	}, error = TRUE)
 })
 
+
+test_that("compute metrics - future_wrapper - original predictors, regression", {
+	# Limited testing here since it is a very thin wrapper
+
+	mtr_ptype <-
+		tibble::tibble(
+			.metric = character(0),
+			.estimator = character(0),
+			.estimate = numeric(0),
+			predictor = character(0),
+			seed = numeric(0)
+		)
+
+	val_list <- list(seed = 1, column = "conc")
+
+	set.seed(1)
+	reg_bl <-
+		important:::future_wrapper(
+			val_list,
+			is_perm = FALSE,
+			type = "original",
+			wflow_fitted = reg_v_fit,
+			dat = CO2_ex,
+			metrics = reg_mtr,
+			size = 20,
+			outcome = "uptake",
+			eval_time = NULL,
+			event_level = "first"
+		)
+
+	expect_equal(reg_bl[0,], mtr_ptype)
+	expect_equal(nrow(reg_bl), 2L)
+	expect_equal(reg_bl$.metric, c("rsq", "mae"))
+	expect_equal(reg_bl$predictor, rep(".baseline", 2))
+
+	set.seed(1)
+	conc_bl <-
+		important:::future_wrapper(
+			val_list,
+			is_perm = TRUE,
+			type = "original",
+			wflow_fitted = reg_v_fit,
+			dat = CO2_ex,
+			metrics = reg_mtr,
+			size = 20,
+			outcome = "uptake",
+			eval_time = NULL,
+			event_level = "first"
+		)
+
+	expect_equal(conc_bl[0,], mtr_ptype)
+	expect_equal(nrow(conc_bl), 2L)
+	expect_equal(conc_bl$.metric, c("rsq", "mae"))
+	expect_equal(conc_bl$predictor, rep("conc", 2))
+
+	expect_true(
+		reg_bl$.estimate[reg_bl$.metric == "rsq"] >
+			conc_bl$.estimate[conc_bl$.metric == "rsq"]
+	)
+
+	expect_true(
+		reg_bl$.estimate[reg_bl$.metric == "mae"] <
+			conc_bl$.estimate[conc_bl$.metric == "mae"]
+	)
+})
+
+
+
+test_that("importance_perm() function - regression", {
+
+	res_ptype <-
+		tibble::tibble(
+			.metric = character(0),
+			predictor = character(0),
+			n = integer(0),
+			mean = numeric(0),
+			std_err = numeric(0),
+			importance = numeric(0)
+		)
+
+	orig_ptype <- res_ptype
+	class(orig_ptype) <- c("importance_perm", "original_importance_perm",
+												 class(res_ptype))
+
+	derv_ptype <- res_ptype
+	class(derv_ptype) <- c("importance_perm", "derived_importance_perm",
+												 class(res_ptype))
+
+	set.seed(1)
+	res_orig <-
+		importance_perm(
+			wflow = reg_v_fit,
+			dat = CO2_ex,
+			metrics = reg_mtr,
+			type = "original",
+			size = 20,
+			times = 3
+		)
+
+	expect_equal(res_orig[0,], orig_ptype)
+	expect_equal(nrow(res_orig), 4L)
+	expect_equal(unique(sort(res_orig$.metric)), c("mae", "rsq"))
+	expect_equal(unique(sort(res_orig$predictor)), c("Type", "conc"))
+	expect_equal(res_orig$n, rep(3, 4))
+
+	###
+
+	set.seed(1)
+	res_derv <-
+		importance_perm(
+			wflow = reg_f_fit,
+			dat = CO2_ex,
+			metrics = reg_mtr,
+			type = "derived",
+			size = 20,
+			times = 3
+		)
+
+	expect_equal(res_derv[0,], derv_ptype)
+	expect_equal(nrow(res_derv), 6L)
+	expect_equal(unique(sort(res_derv$.metric)), c("mae", "rsq"))
+	expect_equal(
+		unique(sort(res_derv$predictor)),
+		c("(Intercept)", "TypeMississippi", "conc")
+	)
+	expect_equal(res_derv$n, rep(3, 6))
+})
+
+
+test_that("importance_perm() function - classification", {
+	skip_if_not_installed("modeldata")
+	skip_if_not_installed("recipes")
+
+	res_ptype <-
+		tibble::tibble(
+			.metric = character(0),
+			predictor = character(0),
+			n = integer(0),
+			mean = numeric(0),
+			std_err = numeric(0),
+			importance = numeric(0)
+		)
+
+	orig_ptype <- res_ptype
+	class(orig_ptype) <- c("importance_perm", "original_importance_perm",
+												 class(res_ptype))
+
+	derv_ptype <- res_ptype
+	class(derv_ptype) <- c("importance_perm", "derived_importance_perm",
+												 class(res_ptype))
+
+	set.seed(1)
+	res_orig <-
+		importance_perm(
+			wflow = cls_f_fit,
+			dat = ad_data_small,
+			metrics = cls_mtr,
+			type = "original",
+			size = 20,
+			times = 3
+		)
+
+	expect_equal(res_orig[0,], orig_ptype)
+	expect_equal(nrow(res_orig), 18L)
+	expect_equal(
+		unique(sort(res_orig$.metric)),
+		c("brier_class", "kap", "mcc")
+	)
+	expect_equal(
+		unique(sort(res_orig$predictor)),
+		c("Genotype", "MMP10", "VEGF", "male", "p_tau", "tau")
+	)
+	expect_equal(res_orig$n, rep(3, 18))
+
+	###
+
+	set.seed(1)
+	res_derv <-
+		importance_perm(
+			wflow = cls_r_fit,
+			dat = ad_data_small,
+			metrics = cls_mtr,
+			type = "derived",
+			size = 20,
+			times = 3
+		)
+
+	expect_equal(res_derv[0,], derv_ptype)
+	expect_equal(nrow(res_derv), 24L)
+	expect_equal(
+		unique(sort(res_derv$.metric)),
+		c("brier_class", "kap", "mcc")
+	)
+	expect_equal(
+		unique(sort(res_derv$predictor)),
+		c("Genotype_E2E3", "Genotype_E2E4", "Genotype_E3E3", "Genotype_E3E4",
+			"Genotype_E4E4", "PC1", "PC2", "male")
+	)
+	expect_equal(res_derv$n, rep(3, 24))
+})
+
+
+test_that("importance_perm() function - censored regression", {
+	skip_if_not_installed("censored")
+
+	res_ptype <-
+		tibble::tibble(
+			.metric = character(0),
+			predictor = character(0),
+			.eval_time = numeric(0),
+			n = integer(0),
+			mean = numeric(0),
+			std_err = numeric(0),
+			importance = numeric(0)
+		)
+
+	orig_ptype <- res_ptype
+	class(orig_ptype) <- c("importance_perm", "original_importance_perm",
+												 class(res_ptype))
+
+	derv_ptype <- res_ptype
+	class(derv_ptype) <- c("importance_perm", "derived_importance_perm",
+												 class(res_ptype))
+
+	set.seed(1)
+	res_orig <-
+		importance_perm(
+			wflow = srv_fit,
+			dat = time_to_million_small,
+			metrics = srv_mtr,
+			type = "original",
+			size = 20,
+			times = 3,
+			eval_time = srv_times
+		)
+
+	expect_equal(res_orig[0,], orig_ptype)
+	expect_equal(nrow(res_orig), 10L)
+	expect_equal(
+		unique(sort(res_orig$.metric)),
+		c("concordance_survival", "roc_auc_survival")
+	)
+	expect_equal(
+		unique(sort(res_orig$predictor)),
+		c("runtime", "year")
+	)
+	expect_equal(res_orig$n, rep(3, 10L))
+
+	###
+
+	set.seed(1)
+	res_derv <-
+		importance_perm(
+			wflow = srv_fit,
+			dat = time_to_million_small,
+			metrics = srv_mtr,
+			type = "derived",
+			size = 20,
+			times = 3,
+			eval_time = srv_times
+		)
+
+	expect_equal(res_derv[0,], derv_ptype)
+	expect_equal(nrow(res_derv), 10L)
+	expect_equal(
+		unique(sort(res_derv$.metric)),
+		c("concordance_survival", "roc_auc_survival")
+	)
+	expect_equal(
+		unique(sort(res_derv$predictor)),
+		c("runtime", "year")
+	)
+	expect_equal(res_derv$n, rep(3, 10L))
+})
