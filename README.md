@@ -4,6 +4,10 @@
 # important
 
 <!-- badges: start -->
+
+[![R-CMD-check](https://github.com/tidymodels/important/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/tidymodels/important/actions/workflows/R-CMD-check.yaml)
+[![Codecov test
+coverage](https://codecov.io/gh/tidymodels/important/branch/main/graph/badge.svg)](https://app.codecov.io/gh/tidymodels/important?branch=main)
 <!-- badges: end -->
 
 The important package has a succinct interface for obtaining estimates
@@ -25,7 +29,7 @@ You can install the development version of important from
 ``` r
 # Not yet!
 # install.packages("devtools")
-devtools::install_github("topepo/important")
+devtools::install_github("tidymodels/important")
 ```
 
 ## Do we really need another package that computes variable importances?
